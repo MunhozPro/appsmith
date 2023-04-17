@@ -12,6 +12,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router";
 import { integrationEditorURL } from "RouteBuilder";
 import {
+  getActionsForCurrentPage,
   getDatasources,
   getPluginIdPackageNamesMap,
   getPluginImages,
@@ -23,11 +24,11 @@ import { DatasourceImage, ImageWrapper } from "../../styles";
 import { Icon, IconSize } from "design-system-old";
 import type { DropdownOptions } from "pages/Editor/GeneratePage/components/constants";
 import type { DropdownOptionType } from "../../types";
+import { DEFAULT_DROPDOWN_OPTION } from "../../constants";
 
 export function useDatasource() {
-  const { addBinding, addSnippet, config, updateConfig } = useContext(
-    WidgetQueryGeneratorFormContext,
-  );
+  const { addBinding, addSnippet, config, propertyValue, updateConfig } =
+    useContext(WidgetQueryGeneratorFormContext);
 
   const dispatch = useDispatch();
 
@@ -39,7 +40,9 @@ export function useDatasource() {
 
   const datasourceOptions: DropdownOptions = useMemo(() => {
     return datasources
-      .filter(({ pluginId }) => WidgetQueryGeneratorRegistry.has(pluginId))
+      .filter(({ pluginId }) =>
+        WidgetQueryGeneratorRegistry.has(pluginsPackageNamesMap[pluginId]),
+      )
       .map((datasource) => ({
         id: datasource.id,
         label: datasource.name,
@@ -114,14 +117,40 @@ export function useDatasource() {
         label: "Insert Binding",
         value: "Insert Binding",
         icon: <Icon name="code" size={IconSize.XXXL} />,
-        onSelect: addBinding,
+        onSelect: () => addBinding("{{}}", true),
       },
     ];
   }, [currentPageId, history]);
 
+  const queries = useSelector(getActionsForCurrentPage);
+
+  const queryOptions = useMemo(() => {
+    return queries.map((query) => ({
+      id: query.config.id,
+      label: query.config.name,
+      value: `{{${query.config.name}.data}}`,
+      icon: (
+        <ImageWrapper>
+          <DatasourceImage
+            alt=""
+            className="dataSourceImage"
+            src={pluginImages[query.config.pluginId]}
+          />
+        </ImageWrapper>
+      ),
+      onSelect: function (value?: string, valueOption?: DropdownOptionType) {
+        addBinding(valueOption?.value, false);
+      },
+    }));
+  }, [queries, pluginImages, addBinding]);
+
   return {
     datasourceOptions,
     otherOptions,
-    selected: config.datasource,
+    selected:
+      config.datasource === DEFAULT_DROPDOWN_OPTION
+        ? propertyValue
+        : config.datasource,
+    queryOptions,
   };
 }

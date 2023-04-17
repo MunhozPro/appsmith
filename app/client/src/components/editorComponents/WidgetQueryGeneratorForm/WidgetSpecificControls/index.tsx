@@ -25,11 +25,7 @@ export default function WidgetSpecificControls(props: Props) {
 
   if (props.hasAliasPicker && props.aliases) {
     aliasPicker = props.aliases.map((alias) => {
-      <ColumnDropdown
-        alias={`column.${alias}`}
-        label={alias}
-        onSelect={noop}
-      />;
+      <ColumnDropdown alias={`alias.${alias}`} label={alias} onSelect={noop} />;
     });
   }
 

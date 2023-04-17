@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import produce from "immer";
 import { noop, set } from "lodash";
 
@@ -9,28 +9,32 @@ import { DatasourceSpecificControls } from "./DatasourceSpecificControls";
 import { Wrapper } from "./styles";
 import type { DropdownOptionType } from "./types";
 import WidgetSpecificControls from "./WidgetSpecificControls";
-import { connect } from "react-redux";
+import { useDispatch } from "react-redux";
 import { executeCommandAction } from "actions/apiPaneActions";
 import { SlashCommand } from "entities/Action";
 
 type WidgetQueryGeneratorFormContextType = {
+  widgetId: string;
+  propertyValue: string;
   config: {
     datasource: DropdownOptionType;
     table: DropdownOptionType;
-    column: Record<string, DropdownOptionType>;
+    alias: Record<string, DropdownOptionType>;
     sheet: DropdownOptionType;
+    searchable_columns: DropdownOptionType;
     tableHeaderIndex: number;
   };
   updateConfig: (propertyName: string, value: unknown) => void;
   addSnippet: () => void;
-  addBinding: () => void;
+  addBinding: (binding?: string, makeDynamicPropertyPath?: boolean) => void;
 };
 
 const DEFAULT_CONFIG_VALUE = {
   datasource: DEFAULT_DROPDOWN_OPTION,
   table: DEFAULT_DROPDOWN_OPTION,
   sheet: DEFAULT_DROPDOWN_OPTION,
-  column: {},
+  alias: {},
+  searchable_columns: DEFAULT_DROPDOWN_OPTION,
   tableHeaderIndex: 1,
 };
 
@@ -39,6 +43,8 @@ const DEFAULT_CONTEXT_VALUE = {
   updateConfig: noop,
   addSnippet: noop,
   addBinding: noop,
+  widgetId: "",
+  propertyValue: "",
 };
 
 export const WidgetQueryGeneratorFormContext =
@@ -47,76 +53,97 @@ export const WidgetQueryGeneratorFormContext =
   );
 
 type Props = {
-  openSnippetModal: (
-    propertyPath: string,
-    entityId: string,
-    expectedType: string,
-    callback: (snippet: string) => void,
-  ) => void;
   propertyPath: string;
+  propertyValue: string;
   expectedType?: string;
   entityId: string;
-  onUpdate: (snippet: string) => void;
+  onUpdate: (snippet?: string, makeDynamicPropertyPath?: boolean) => void;
+  widgetId: string;
 };
 
 function WidgetQueryGeneratorForm(props: Props) {
-  const { entityId, expectedType, onUpdate, openSnippetModal, propertyPath } =
-    props;
+  const dispatch = useDispatch();
 
-  const [config, setConfig] = useState(DEFAULT_CONFIG_VALUE);
+  const {
+    entityId,
+    expectedType,
+    onUpdate,
+    propertyPath,
+    propertyValue,
+    widgetId,
+  } = props;
 
-  const updateConfig = useCallback(
-    (propertyName: string, value: unknown) => {
-      setConfig(
-        produce(config, (draftConfig) => {
-          set(draftConfig, propertyName, value);
+  const [config, setConfig] = useState({
+    ...DEFAULT_CONFIG_VALUE,
+    widgetId,
+  });
 
-          if (propertyName === "datasource") {
-            set(draftConfig, "table", DEFAULT_DROPDOWN_OPTION);
-            set(draftConfig, "sheet", DEFAULT_DROPDOWN_OPTION);
-            set(draftConfig, "searchable_columns", DEFAULT_DROPDOWN_OPTION);
-            set(draftConfig, "column", {});
-          }
+  const updateConfig = (propertyName: string, value: unknown) => {
+    setConfig(
+      produce(config, (draftConfig) => {
+        set(draftConfig, propertyName, value);
 
-          if (propertyName === "table") {
-            set(draftConfig, "sheet", DEFAULT_DROPDOWN_OPTION);
-            set(draftConfig, "searchable_columns", DEFAULT_DROPDOWN_OPTION);
-            set(draftConfig, "column", {});
-          }
+        if (propertyName === "datasource") {
+          set(draftConfig, "table", DEFAULT_DROPDOWN_OPTION);
+          set(draftConfig, "sheet", DEFAULT_DROPDOWN_OPTION);
+          set(draftConfig, "searchable_columns", DEFAULT_DROPDOWN_OPTION);
+          set(draftConfig, "alias", {});
+        }
 
-          if (propertyName === "sheet") {
-            set(draftConfig, "searchable_columns", DEFAULT_DROPDOWN_OPTION);
-            set(draftConfig, "column", {});
-          }
-        }),
-      );
-    },
-    [config],
-  );
+        if (propertyName === "table") {
+          set(draftConfig, "sheet", DEFAULT_DROPDOWN_OPTION);
+          set(draftConfig, "searchable_columns", DEFAULT_DROPDOWN_OPTION);
+          set(draftConfig, "alias", {});
+        }
+
+        if (propertyName === "sheet") {
+          set(draftConfig, "searchable_columns", DEFAULT_DROPDOWN_OPTION);
+          set(draftConfig, "alias", {});
+        }
+      }),
+    );
+  };
 
   const addSnippet = useCallback(() => {
-    openSnippetModal(
-      propertyPath,
-      entityId,
-      expectedType || "Array",
-      (snippet: string) => {
-        onUpdate(snippet);
-      },
+    dispatch(
+      executeCommandAction({
+        actionType: SlashCommand.NEW_SNIPPET,
+        args: {
+          entityType: "widget",
+          expectedType: expectedType || "Array",
+          entityId: entityId,
+          propertyPath: propertyPath,
+        },
+        callback: (snippet: string) => {
+          onUpdate(snippet, true);
+        },
+      }),
     );
-  }, [openSnippetModal, propertyPath, entityId, expectedType, onUpdate]);
+  }, [propertyPath, entityId, expectedType, onUpdate]);
 
-  const addBinding = useCallback(() => {
-    onUpdate("{{}}");
-  }, [onUpdate]);
+  const addBinding = useCallback(
+    (binding?: string, makeDynamicPropertyPath?: boolean) => {
+      onUpdate(binding, makeDynamicPropertyPath);
+    },
+    [onUpdate],
+  );
 
   const contextValue = useMemo(() => {
     return {
-      config,
+      config: {
+        ...config,
+      },
       updateConfig,
       addSnippet,
       addBinding,
+      propertyValue,
+      widgetId,
     };
-  }, [config, updateConfig, addSnippet, addBinding]);
+  }, [config, updateConfig, addSnippet, addBinding, propertyValue, widgetId]);
+
+  useEffect(() => {
+    updateConfig("datasource", DEFAULT_DROPDOWN_OPTION);
+  }, [propertyValue]);
 
   return (
     <Wrapper>
@@ -130,24 +157,4 @@ function WidgetQueryGeneratorForm(props: Props) {
   );
 }
 
-export default connect(null, (dispatch) => ({
-  openSnippetModal: (
-    propertyPath: string,
-    entityId: string,
-    expectedType: string,
-    callback: (snippet: string) => void,
-  ) => {
-    dispatch(
-      executeCommandAction({
-        actionType: SlashCommand.NEW_SNIPPET,
-        args: {
-          entityType: "widget",
-          expectedType: expectedType,
-          entityId: entityId,
-          propertyPath: propertyPath,
-        },
-        callback,
-      }),
-    );
-  },
-}))(WidgetQueryGeneratorForm);
+export default WidgetQueryGeneratorForm;

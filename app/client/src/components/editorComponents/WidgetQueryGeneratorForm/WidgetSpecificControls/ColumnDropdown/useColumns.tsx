@@ -9,7 +9,10 @@ import {
   getGsheetsColumns,
   getIsFetchingGsheetsColumns,
 } from "selectors/datasourceSelectors";
-import { getDatasourceTableColumns } from "selectors/entitiesSelector";
+import {
+  getDatasourceTableColumns,
+  getDatasourceTablePrimaryColumn,
+} from "selectors/entitiesSelector";
 import { WidgetQueryGeneratorFormContext } from "../..";
 import { DEFAULT_DROPDOWN_OPTION } from "../../constants";
 
@@ -24,6 +27,10 @@ export function useColumns(alias: string) {
 
   const sheetColumns = useSelector(
     getGsheetsColumns(config.sheet.id + "_" + config.sheet.data.sheetURL),
+  );
+
+  const primaryColumn = useSelector(
+    getDatasourceTablePrimaryColumn(config.datasource.id, config.table.id),
   );
 
   const options = useMemo(() => {
@@ -85,5 +92,6 @@ export function useColumns(alias: string) {
         PluginPackageName.GOOGLE_SHEETS ||
         config.sheet.id !== DEFAULT_DROPDOWN_OPTION.id) &&
       config.table.id !== DEFAULT_DROPDOWN_OPTION.id,
+    primaryColumn,
   };
 }

@@ -70,6 +70,20 @@ export const getDatasourceTableColumns =
       return table?.columns;
     }
   };
+export const getDatasourceTablePrimaryColumn =
+  (datasourceId: string, tableName: string) => (state: AppState) => {
+    const structure = getDatasourceStructureById(datasourceId)(state);
+
+    if (structure) {
+      const table = structure.tables?.find((d) => d.name === tableName);
+
+      if (table) {
+        const primaryKey = table.keys?.find((d) => d.type === "primary key");
+
+        return primaryKey?.columnNames?.[0];
+      }
+    }
+  };
 
 export const getIsFetchingDatasourceStructure = (state: AppState): boolean => {
   return state.entities.datasources.fetchingDatasourceStructure;
